@@ -1,42 +1,53 @@
 import json
 import random
 import string
+import pymongo
 from bson.objectid import ObjectId
+import datetime
 
+def generate_referral_accounts( user_email, num_referrals):
+    client = pymongo.MongoClient("mongodb://localhost:27017/")
+    db = client["main"]
+    collection = db["test"]
+    cursor = collection.find().sort('_id', -1).limit(1)
+    for document in cursor:
+        user_id = document["userId"]
 
-def generate_referral_accounts(user_id, user_email, num_referrals):
     referrals = []
     password = 'c93cab31dea169dbef9b803525a5721627e5c62dc1ab24449167e74e75fd4948'
-    base_id = str(ObjectId())
-    base_user = generate_base_user(user_email, password, base_id)
-    referrals.append(base_user)
+    result = collection.find_one({"email": user_email})
+    base_id = result["_id"]
+    iter = 0
     for i in range(num_referrals):
-        random_email = ''.join(random.choices(string.ascii_lowercase, k=8)) + "@" + user_email.split('@')[1]
-        first_ref_id = str(ObjectId())
-        referral_account = generate_account(first_ref_id, i, random_email, password, base_id, 'consutant')
-        referrals.append(referral_account)
-        for i in range(num_referrals):
-            random_email = ''.join(random.choices(string.ascii_lowercase, k=8)) + "@" + user_email.split('@')[1]
+        iter+=1;
+        random_email = user_email.split('@')[0] + str(iter) + "@" + user_email.split('@')[1]
+        first_ref_id = ObjectId()
+        referral_account = generate_account(first_ref_id, iter, random_email, password, base_id, 'consutant', user_id)
+        collection.insert_one(referral_account)
+        for k in range(num_referrals):
+            iter += 1;
+            random_email = user_email.split('@')[0] + str(iter) + "@" + user_email.split('@')[1]
             second_ref_id = str(ObjectId())
-            referral_account = generate_account(second_ref_id, i, random_email, password, first_ref_id, 'agent')
+            referral_account = generate_account(second_ref_id, iter, random_email, password, first_ref_id, 'agent', user_id)
             referrals.append(referral_account)
-            for i in range(num_referrals-1):
-                random_email = ''.join(random.choices(string.ascii_lowercase, k=8)) + "@" + user_email.split('@')[1]
+            collection.insert_one(referral_account)
+            print(iter)
+            for j in range(num_referrals-1):
+                iter += 1;
+                random_email = user_email.split('@')[0] + str(iter) + "@" + user_email.split('@')[1]
                 third_ref_id = str(ObjectId())
-                referral_account = generate_account(third_ref_id, i, random_email, password, second_ref_id, 'investor')
+                referral_account = generate_account(third_ref_id, iter, random_email, password, second_ref_id, 'investor', user_id)
                 referrals.append(referral_account)
+                collection.insert_one(referral_account)
+                print(iter)
+    client.close()
 
 
-    # Записываем объекты аккаунтов рефералов в JSON-файл
-    with open('referral_accounts.json', 'w') as file:
-        json.dump(referrals, file, indent=4)
-
-
-def generate_account(id, i, email, password, ref_id, status):
+def generate_account(id, i, email, password, ref_id, status, userid):
    return {
-        "_id": {"$oid": id},
-        "registerDate": {"$date": "2023-07-13T09:41:27.258Z"},
-        "userId": i + 2,
+        "_id": ObjectId(id),
+        "registerDate": datetime.datetime.now(),
+        "userId": userid+i,
         "admin": False,
         "avatar": None,
         "email": email,
@@ -87,6 +98,3 @@ def generate_account(id, i, email, password, ref_id, status):
     }
 
 
-def generate_base_user(user_email, password, id):
-    random_email = ''.join(random.choices(string.ascii_lowercase, k=8)) + "@" + user_email.split('@')[1]
-    return generate_account(id, 0, user_email, password, None, 'seniorConsultant')
