@@ -9,6 +9,7 @@ def generate_referral_accounts( user_email, num_referrals):
     client = pymongo.MongoClient("mongodb://localhost:27017/")
     db = client["main"]
     collection = db["test"]
+    refscollection = db["testrefs"]
     cursor = collection.find().sort('_id', -1).limit(1)
     for document in cursor:
         user_id = document["userId"]
@@ -24,6 +25,9 @@ def generate_referral_accounts( user_email, num_referrals):
         first_ref_id = ObjectId()
         referral_account = generate_account(first_ref_id, iter, random_email, password, base_id, 'consutant', user_id)
         collection.insert_one(referral_account)
+        currentConsultant = referral_account
+        consultant_refs = create_refs(referral_account["_id"], referral_account["ref"], referral_account["status"], 1)
+        refscollection.insert_one(consultant_refs)
         for k in range(num_referrals):
             iter += 1;
             random_email = user_email.split('@')[0] + str(iter) + "@" + user_email.split('@')[1]
@@ -31,6 +35,9 @@ def generate_referral_accounts( user_email, num_referrals):
             referral_account = generate_account(second_ref_id, iter, random_email, password, first_ref_id, 'agent', user_id)
             referrals.append(referral_account)
             collection.insert_one(referral_account)
+            currentAgent = referral_account
+            refscollection.insert_one(create_refs(referral_account["_id"], referral_account["ref"], referral_account["status"], 1))
+            refscollection.insert_one(create_refs(referral_account["_id"], currentConsultant["ref"], referral_account["status"], 2))
             print(iter)
             for j in range(num_referrals-1):
                 iter += 1;
@@ -39,8 +46,24 @@ def generate_referral_accounts( user_email, num_referrals):
                 referral_account = generate_account(third_ref_id, iter, random_email, password, second_ref_id, 'investor', user_id)
                 referrals.append(referral_account)
                 collection.insert_one(referral_account)
+                refscollection.insert_one(create_refs(referral_account["_id"], referral_account["ref"], referral_account["status"], 1))
+                refscollection.insert_one(create_refs(referral_account["_id"], currentAgent["ref"], referral_account["status"], 2))
+                refscollection.insert_one(create_refs(referral_account["_id"], currentConsultant["ref"], referral_account["status"], 3))
                 print(iter)
     client.close()
+
+
+def create_refs(userid, ref_id, status, line):
+    return {
+        "_id": ObjectId(),
+        "user": {"$oid": str(userid)},
+        "ref": {"$oid": str(ref_id)},
+        "line": line,
+        "turnover": 0,
+        "profit": 0,
+        "status": status,
+        "__v": 0
+    }
 
 
 def generate_account(id, i, email, password, ref_id, status, userid):
@@ -96,5 +119,6 @@ def generate_account(id, i, email, password, ref_id, status, userid):
         "status": status,
         "__v": 0
     }
+
 
 
